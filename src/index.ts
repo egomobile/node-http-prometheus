@@ -72,7 +72,12 @@ export interface ISetupPromClientResult {
 /**
  * Possible values for 3rd argument of `setupPromClient()` function.
  */
-export type SetupPromClientArg3 = ISetupPromClientOptions | HttpMiddleware[] | promClient.Registry | string;
+export type SetupPromClientArg3 =
+    HttpMiddleware[] |
+    ISetupPromClientOptions |
+    promClient.Registry |
+    RegistryProvider |
+    string;
 
 /**
  * Sets up a HTTP server instance, returning metrics for Prometheus compatible clients.
@@ -103,6 +108,7 @@ export type SetupPromClientArg3 = ISetupPromClientOptions | HttpMiddleware[] | p
  * ```
  */
 export function setupPromClient(server: IHttpServer, path: HttpRequestPath): ISetupPromClientResult;
+export function setupPromClient(server: IHttpServer, path: HttpRequestPath, getRegistry: Nilable<RegistryProvider>): ISetupPromClientResult;
 export function setupPromClient(server: IHttpServer, path: HttpRequestPath, httpMethod: Nilable<HttpMethod>): ISetupPromClientResult;
 export function setupPromClient(server: IHttpServer, path: HttpRequestPath, use: Nilable<HttpMiddleware[]>): ISetupPromClientResult;
 export function setupPromClient(server: IHttpServer, path: HttpRequestPath, options: Nilable<ISetupPromClientOptions>): ISetupPromClientResult;
@@ -112,63 +118,84 @@ export function setupPromClient(server: IHttpServer, path: HttpRequestPath, arg3
         throw new TypeError("server must be a valid e.GO HTTP server instance");
     }
 
+    let getRegistry: AsyncRegistryProvider;
     let httpMethod: HttpMethod = "get";
     const use: HttpMiddleware[] = [];
 
-    let getRegistry: RegistryProvider;
-    if (arg3 instanceof promClient.Registry) {
-        getRegistry = async () => {
-            return arg3 as promClient.Registry;
-        };
-    }
-    else if (Array.isArray(arg3)) {
-        use.push(...arg3);
-    }
-    else if (typeof arg3 === "string") {
-        httpMethod = arg3 as HttpMethod;
+    let options: ISetupPromClientOptions;
+    if (isNil(arg3)) {
+        options = {};
     }
     else {
-        // getRegistry
-        if (isNil(arg3?.getRegistry)) {
-            // default => create new
-
-            const registry = new promClient.Registry();
-            promClient.collectDefaultMetrics({ "register": registry });
-
-            getRegistry = async () => {
-                return registry;
+        if (arg3 instanceof promClient.Registry) {
+            options = {
+                "getRegistry": async () => {
+                    return arg3 as promClient.Registry;
+                }
+            };
+        }
+        else if (Array.isArray(arg3)) {
+            options = {
+                "use": arg3
+            };
+        }
+        else if (typeof arg3 === "object") {
+            options = {
+                ...arg3
+            };
+        }
+        else if (typeof arg3 === "string") {
+            options = {
+                "httpMethod": arg3 as HttpMethod
             };
         }
         else {
-            getRegistry = arg3.getRegistry as RegistryProvider;
-        }
+            // function
 
-        // use
-        if (!isNil(arg3?.use)) {
-            if (!Array.isArray(arg3?.use)) {
-                throw new TypeError("arg3.use must be of type array");
-            }
-
-            use.push(...arg3.use);
-        }
-
-        // httpMethod
-        if (!isNil(arg3?.httpMethod)) {
-            if (typeof arg3.httpMethod !== "string") {
-                throw new TypeError("arg3.httpMethod must be of type string");
-            }
-
-            httpMethod = arg3.httpMethod;
+            options = {
+                "getRegistry": arg3
+            };
         }
     }
 
-    if (typeof getRegistry !== "function") {
-        throw new TypeError("optionsOrRegistry is an invalid value");
+    // getRegistry
+    if (isNil(options.getRegistry)) {
+        // default: create new registry instance
+
+        const registry = new promClient.Registry();
+        promClient.collectDefaultMetrics({ "register": registry });
+
+        options.getRegistry = async () => {
+            return registry;
+        };
+    }
+    else if (typeof options.getRegistry !== "function") {
+        throw new TypeError("getRegistry must be of type function");
     }
 
-    getRegistry = asAsync<AsyncRegistryProvider>(getRegistry);
+    // additional middlewares
+    if (!isNil(options.use)) {
+        if (Array.isArray(options.use)) {
+            use.push(...options.use);
+        }
+        else {
+            throw new TypeError("use must be of type array");
+        }
+    }
 
-    const requestHandler = async function (request, response) {
+    // custom HTTP method
+    if (!isNil(options.httpMethod)) {
+        if (typeof options.httpMethod === "string") {
+            httpMethod = options.httpMethod as HttpMethod;
+        }
+        else {
+            throw new TypeError("use must be of type array");
+        }
+    }
+
+    getRegistry = asAsync<AsyncRegistryProvider>(options.getRegistry);
+
+    const requestHandler: HttpRequestHandler = async function (request, response) {
         const registry = await getRegistry();
 
         const responseData = await registry.metrics();
@@ -180,6 +207,7 @@ export function setupPromClient(server: IHttpServer, path: HttpRequestPath, arg3
         response.write(responseData);
     };
 
+    // register
     server[httpMethod](path, use, requestHandler);
 
     return {

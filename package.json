@@ -1,0 +1,63 @@
+{
+    "name": "@egomobile/http-prometheus",
+    "version": "0.1.0",
+    "description": "Sets up prom-clients for @egomobile/http-server instances.",
+    "main": "lib/index.js",
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "scripts": {
+        "build": "del ./lib && tsc",
+        "docs:generate": "del ./docs && typedoc --out ./docs ./src",
+        "lint": "eslint -c .eslintrc.js --ext .ts src",
+        "lint:fix": "eslint --fix -c .eslintrc.js --ext .ts src",
+        "sandbox": "nodemon --watch './sandbox.ts' --watch './sandbox/**/*.ts' --exec node -r ts-node/register --inspect=0.0.0.0:9229 ./sandbox/index.ts",
+        "test": "exit 0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/egomobile/node-http-prometheus.git"
+    },
+    "keywords": [
+        "metrics",
+        "prometheus",
+        "prom-client",
+        "endpoint",
+        "rest",
+        "http handler",
+        "http server",
+        "api",
+        "ego"
+    ],
+    "author": "Next.e.GO Mobile SE, Aachen, Germany",
+    "license": "LGPL-3.0",
+    "files": [
+        "index.d.ts",
+        "CHANGELOG.md",
+        "LICENSE",
+        "lib",
+        "!lib/**/__tests__/**/*",
+        "!lib/**/*.map",
+        "!lib/**/setupTests.*",
+        "README.md"
+    ],
+    "devDependencies": {
+        "@egomobile/http-server": "^0.54.0",
+        "@egomobile/tsconfig": "^5.0.0",
+        "@types/node": "16.18.10",
+        "del-cli": "5.0.0",
+        "eslint": "8.30.0",
+        "eslint-config-ego": "^0.17.1",
+        "nodemon": "2.0.20",
+        "ts-node": "10.9.1",
+        "tslint": "6.1.3",
+        "typedoc": "0.23.23",
+        "typescript": "4.6.4"
+    },
+    "peerDependencies": {
+        "@egomobile/http-server": ">= 0.54.0"
+    },
+    "dependencies": {
+        "prom-client": "14.1.0"
+    }
+}
